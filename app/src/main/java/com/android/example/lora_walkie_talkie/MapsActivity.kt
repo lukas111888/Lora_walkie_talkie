@@ -10,7 +10,6 @@ import android.bluetooth.le.ScanResult
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.location.Criteria
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
@@ -85,13 +84,14 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, LocationListener{
             }
             Requester=true
             Receiver = false
-            locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
-            if ((ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED)) {
-                ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), locationPermissionCode)
-            }
-            locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 2000, 0f, this)
+//            locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
+//            if ((ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED)) {
+//                ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), locationPermissionCode)
+//            }
+//            number = 0
+//            locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000, 0f, this)
             //locationManager.removeUpdates(this)
-           // getLocation()
+           getLocation()
         }
 
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
@@ -111,40 +111,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, LocationListener{
         // Set up the UI
         myBtDeviceListAdapter = BluetoothDeviceListAdapter()
         myBtGattListAdapter = GattListAdapter()
-        /*
-        binding.recyclerViewDevices.layoutManager = LinearLayoutManager(this)
-        binding.recyclerViewDevices.adapter = myBtDeviceListAdapter
-        binding.recyclerViewGatt.layoutManager = LinearLayoutManager(this)
-        binding.recyclerViewGatt.adapter = myBtGattListAdapter
 
-        // Setup the selection tracker (more UI stuff)
-        tracker = SelectionTracker.Builder(
-            "mySelection",
-            binding.recyclerViewDevices,
-            MyItemKeyProvider(myBtDeviceListAdapter),
-            MyItemDetailsLookup(binding.recyclerViewDevices),
-            StorageStrategy.createStringStorage()
-        ).withSelectionPredicate(
-            SelectionPredicates.createSelectSingleAnything()
-        ).build()
-
-        myBtDeviceListAdapter.tracker = tracker
-        tracker?.addObserver(
-            object : SelectionTracker.SelectionObserver<String>() {
-                override fun onSelectionChanged() {
-                    super.onSelectionChanged()
-                    myBtGattListAdapter.clearServices()
-                    val items = tracker?.selection!!.size()
-                    if (items > 0) {
-                        selectedDevice = myBtDeviceListAdapter.getDeviceFromAddress(
-                            tracker?.selection.elementAt(0)
-                        )
-                    } else {
-                        selectedDevice = null
-                    }
-                }
-            })
-        */
 
         if (bluetoothAdapter != null) {
             if (!bluetoothAdapter!!.isEnabled) {
@@ -186,11 +153,14 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, LocationListener{
     }
 
     private fun getLocation() {
-//        locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
+        number = 0
+        locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
         if ((ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED)) {
             ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), locationPermissionCode)
         }
-        locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0f, this)
+        locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1500, 0f, this)
+
+        Log.e(TAG, "CHECCKING")
 //        val criteria = Criteria()
 //        criteria.accuracy = Criteria.ACCURACY_COARSE
 //        locationManager.requestSingleUpdate(LocationManager.GPS_PROVIDER, this, null);
@@ -213,12 +183,15 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, LocationListener{
             update(tvGpsLocation.text.toString())
         }
 
-        Requester=false
-        Receiver=false
+        if (number >5) {
+            Requester=false
+            Receiver=false
+            Log.e(TAG, "SENT ENOUGH REQUESTS")
+            locationManager.removeUpdates(this)
+        }
+
         addLocMap(lat,long,"My Location")
-        //locationManager.removeUpdates(this)
-
-
+        number +=1
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
@@ -256,6 +229,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, LocationListener{
             bluetoothLeScanner?.stopScan(leScanCallback)
         }
     }
+
     @SuppressLint("MissingPermission")
     private fun stopLeScan() = {
         if (scanning != false) {
@@ -328,12 +302,13 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, LocationListener{
             if(s1=="GPS:REQUEST LOC"){
                 Log.e(TAG, "string match")
                 Receiver=true
-                getLocation()
+                update("LOCATION: " + lat +','+long)
             }
 
 
         }
     }
+
     @SuppressLint("MissingPermission")
     private fun checkAndConnectToHRM(services: List<BluetoothGattService>?) {
         Log.e(TAG, "Checking for Arduino Service")
@@ -386,7 +361,6 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, LocationListener{
         }
     }
 
-
     @SuppressLint("MissingPermission")
     private fun connectToDevice() {
         if (selectedDevice != null) {
@@ -408,6 +382,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, LocationListener{
             }
         }
     }
+
     @SuppressLint("MissingPermission")
     private fun update(gps:String) {
         handler.post{
