@@ -1,6 +1,7 @@
 package com.android.example.lora_walkie_talkie
 
-
+import android.Manifest.permission.ACCESS_COARSE_LOCATION
+import android.Manifest.permission.ACCESS_FINE_LOCATION
 import android.Manifest
 import android.annotation.SuppressLint
 import android.bluetooth.*
@@ -10,27 +11,33 @@ import android.bluetooth.le.ScanResult
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.location.Criteria
-import android.location.Location
+import android.location.*
 import android.location.LocationListener
-import android.location.LocationManager
 import android.os.Bundle
 import android.os.Handler
+import android.os.Looper
 import android.util.Log
+import android.view.View
 import android.widget.Button
 import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.selection.SelectionTracker
 import com.android.example.lora_walkie_talkie.databinding.ActivityMapsBinding
+import com.google.android.gms.location.*
+import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.MarkerOptions
+import java.io.IOException
+import java.util.*
+
 
 
 class MapsActivity : AppCompatActivity(), OnMapReadyCallback, LocationListener{
@@ -66,7 +73,8 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, LocationListener{
     var Requester: Boolean = false
     var Receiver: Boolean = false
 
-
+    private lateinit var locationCallback: LocationCallback
+    private lateinit var mFusedLocationClient: FusedLocationProviderClient
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -75,24 +83,75 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, LocationListener{
         binding = ActivityMapsBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        // Ask for permissions
+        val locationPermissionRequest = registerForActivityResult(
+            ActivityResultContracts.RequestMultiplePermissions()
+        ) { permissions ->
+            when {
+                permissions.getOrDefault(Manifest.permission.ACCESS_FINE_LOCATION, false) -> {
+                    // Precise location access granted.
+                    mFusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
+                }
+                permissions.getOrDefault(Manifest.permission.ACCESS_COARSE_LOCATION, false) -> {
+                    // Only approximate location access granted.
+                } else -> {
+                // No location access granted.
+            }
+            }
+        }
 
+        if (ActivityCompat.checkSelfPermission(
+                this,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(
+                this,
+                Manifest.permission.ACCESS_COARSE_LOCATION
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            locationPermissionRequest.launch(arrayOf(
+                Manifest.permission.ACCESS_COARSE_LOCATION,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ))
+            return
+        }
 
+        // Get the FusedLocationProviderClient
+        mFusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
+
+        locationCallback = object : LocationCallback() {
+            override fun onLocationResult(p0: LocationResult) {
+                p0 ?: return
+                for (location in p0.locations){
+                    // Update UI with location data
+                    tvGpsLocation.text = "Latitude: " + location.latitude + " , Longitude: " + location.longitude
+                    //update(tvGpsLocation.text.toString())
+                    if(Requester){
+                        Log.e(TAG, "Requester Triggered!!!!")
+                        update("GPS:REQUEST LOC")
+                    }
+                    if(Receiver){
+                        Log.e(TAG, "Receiver Triggered!!!!")
+                        update(tvGpsLocation.text.toString())
+                    }
+                }
+            }
+        }
         title = "KotlinApp"
         val button: Button = findViewById(R.id.button)
-        button.setOnClickListener {
-            if (!BLEconnection){
-                scanLeDevice()
-            }
-            Requester=true
-            Receiver = false
-            locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
-            if ((ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED)) {
-                ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), locationPermissionCode)
-            }
-            locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 2000, 0f, this)
-            //locationManager.removeUpdates(this)
-           // getLocation()
-        }
+//        button.setOnClickListener {
+//            if (!BLEconnection){
+//                scanLeDevice()
+//            }
+//            Requester=true
+//            Receiver = false
+//            locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
+//            if ((ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED)) {
+//                ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), locationPermissionCode)
+//            }
+//            locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 2000, 0f, this)
+//            //locationManager.removeUpdates(this)
+//           // getLocation()
+//        }
 
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         val mapFragment = supportFragmentManager
@@ -111,40 +170,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, LocationListener{
         // Set up the UI
         myBtDeviceListAdapter = BluetoothDeviceListAdapter()
         myBtGattListAdapter = GattListAdapter()
-        /*
-        binding.recyclerViewDevices.layoutManager = LinearLayoutManager(this)
-        binding.recyclerViewDevices.adapter = myBtDeviceListAdapter
-        binding.recyclerViewGatt.layoutManager = LinearLayoutManager(this)
-        binding.recyclerViewGatt.adapter = myBtGattListAdapter
 
-        // Setup the selection tracker (more UI stuff)
-        tracker = SelectionTracker.Builder(
-            "mySelection",
-            binding.recyclerViewDevices,
-            MyItemKeyProvider(myBtDeviceListAdapter),
-            MyItemDetailsLookup(binding.recyclerViewDevices),
-            StorageStrategy.createStringStorage()
-        ).withSelectionPredicate(
-            SelectionPredicates.createSelectSingleAnything()
-        ).build()
-
-        myBtDeviceListAdapter.tracker = tracker
-        tracker?.addObserver(
-            object : SelectionTracker.SelectionObserver<String>() {
-                override fun onSelectionChanged() {
-                    super.onSelectionChanged()
-                    myBtGattListAdapter.clearServices()
-                    val items = tracker?.selection!!.size()
-                    if (items > 0) {
-                        selectedDevice = myBtDeviceListAdapter.getDeviceFromAddress(
-                            tracker?.selection.elementAt(0)
-                        )
-                    } else {
-                        selectedDevice = null
-                    }
-                }
-            })
-        */
 
         if (bluetoothAdapter != null) {
             if (!bluetoothAdapter!!.isEnabled) {
@@ -174,6 +200,16 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, LocationListener{
      * it inside the SupportMapFragment. This method will only be triggered once the user has
      * installed Google Play services and returned to the app.
      */
+    fun startUpdatesButtonHandler(view: View) {
+        val locationRequest = LocationRequest.create()?.apply {
+            interval = 10000
+            fastestInterval = 5000
+            priority = LocationRequest.PRIORITY_HIGH_ACCURACY
+        }
+
+        mFusedLocationClient.requestLocationUpdates(locationRequest,
+            locationCallback, Looper.getMainLooper())
+    }
     override fun onMapReady(googleMap: GoogleMap) {
         mMap = googleMap
         var sydney = LatLng(31.0, 151.0)
@@ -196,7 +232,55 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, LocationListener{
 //        locationManager.requestSingleUpdate(LocationManager.GPS_PROVIDER, this, null);
 
     }
+    fun getAddress(location: Location) {
+        val geocoder = Geocoder(this, Locale.getDefault())
+        // Address found using the Geocoder.
+        var addresses: List<Address>? = null
 
+        try {
+            // Using getFromLocation() returns an array of Addresses for the area immediately
+            // surrounding the given latitude and longitude. The results are a best guess and are
+            // not guaranteed to be accurate.
+            addresses = geocoder.getFromLocation(
+                location.getLatitude(),
+                location.getLongitude(),  // In this sample, we get just a single address.
+                5
+            )
+        } catch (ioException: IOException) {
+            // Catch network or other I/O problems.
+            Log.e(TAG, "service not available")
+
+        } catch (illegalArgumentException: IllegalArgumentException) {
+            // Catch invalid latitude or longitude values.
+            Log.e(TAG,  "invalid lat/lng")
+
+        }
+
+        // Handle case where no address was found.
+
+        // Handle case where no address was found.
+        if (addresses == null || addresses.size == 0) {
+            Log.e(TAG, "No Address")
+        } else {
+            Log.i("ADDRESS", addresses.toString())
+            val address = addresses[0]
+            val addressFragments = ArrayList<String?>()
+
+            // Fetch the address lines using {@code getAddressLine},
+            // join them, and send them to the thread. The {@link android.location.address}
+            // class provides other options for fetching address details that you may prefer
+            // to use. Here are some examples:
+            // getLocality() ("Mountain View", for example)
+            // getAdminArea() ("CA", for example)
+            // getPostalCode() ("94043", for example)
+            // getCountryCode() ("US", for example)
+            // getCountryName() ("United States", for example)
+            for (i in 0..address.maxAddressLineIndex) {
+                addressFragments.add(address.getAddressLine(i))
+            }
+
+        }
+    }
     override fun onLocationChanged(location: Location) {
         Log.e(TAG, "LOCATION UPDATE!!!")
         lat = location.latitude
