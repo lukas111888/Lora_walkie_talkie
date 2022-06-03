@@ -50,6 +50,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, LocationListener{
     private val handler = Handler()
     var bluetoothGatt: BluetoothGatt? = null
     var number = 0
+    var count = 0
     //var sender: BluetoothGattCharacteristic
 
     // Stops scanning after 10 seconds.
@@ -148,12 +149,12 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, LocationListener{
         if (lat != null) {
             sydney = LatLng(lat, long)
         }
-        mMap.addMarker(MarkerOptions().position(sydney).title("Marker in Sydney"))
+        mMap.addMarker(MarkerOptions().position(sydney).title("My Location"))
         mMap.moveCamera(CameraUpdateFactory.newLatLng(sydney))
     }
 
     private fun getLocation() {
-        number = 0
+        count = 0
         locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
         if ((ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED)) {
             ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), locationPermissionCode)
@@ -183,7 +184,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, LocationListener{
             update(tvGpsLocation.text.toString())
         }
 
-        if (number >5) {
+        if (count >5) {
             Requester=false
             Receiver=false
             Log.e(TAG, "SENT ENOUGH REQUESTS")
@@ -191,7 +192,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, LocationListener{
         }
 
         addLocMap(lat,long,"My Location")
-        number +=1
+        count +=1
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
@@ -209,8 +210,8 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, LocationListener{
 
     private fun addLocMap(lat:Double,long:Double,pin_title:String) {
         var current_location = LatLng(lat, long)
-        mMap.addMarker(MarkerOptions().position(current_location ).title("Marker in Sydney"))
-        mMap.moveCamera(CameraUpdateFactory.newLatLng(current_location ))
+        mMap.addMarker(MarkerOptions().position(current_location ).title(pin_title))
+        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(current_location,12f))
     }
 
 
@@ -289,20 +290,24 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, LocationListener{
             // value[1] is the current beats per second
             Log.e(TAG, "CHAR READ!!!!!!")
             //Log.e(TAG, characteristic.toString())
-            //Log.e(TAG, characteristic?.value?.get(1)?.toUByte().toString())
+            Log.e(TAG, characteristic?.getValue()?.toUByteArray().toString())
             var test = characteristic?.getValue()?.toUByteArray()
             var s1 = ""
             if (test != null ) {
                 for (i in test) {
                     s1 = concatenate(s1,i.toDouble().toChar().toString())
-                    //Log.e(TAG,i.toDouble().toChar().toString())
+                    Log.e(TAG,i.toDouble().toChar().toString())
                 }
             }
             Log.e(TAG,s1)
             if(s1=="GPS:REQUEST LOC"){
-                Log.e(TAG, "string match")
+                Log.w(TAG, "Send GPS LOCATION TO HELTEC")
                 Receiver=true
                 update("LOCATION: " + lat +','+long)
+            } else {
+                //Decode the String into the form of cordinates and update the map to add another pin
+                Log.e(TAG, "Getting Location from Heltec")
+                addLocMap(60.56,-125.758,"Received")
             }
 
 
