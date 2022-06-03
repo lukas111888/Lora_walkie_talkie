@@ -64,7 +64,7 @@ void gotTouch(){
   if (lastTouchActive != testingLower) {
     touchActive = !touchActive;
     testingLower = !testingLower;
-    touchInterruptSetThresholdDirection(testingLower);
+    //touchInterruptSetThresholdDirection(testingLower);
   }
   Switch();
 }
@@ -92,18 +92,21 @@ void Switch(){
   if(last_Button != Button){    
     last_Button = Button;
       if (Button) {
-        statement |= 0b01;
+        statement |= 0b10;//0b01
         Serial.println("  ---- Button was Pressed");
         hrm++;
       } else {
-        statement &= 0b10;
+        statement &= 0b01; //
         Serial.println("  ---- Button was Released");
       }
   }
   // notify changed value
   if(last_statement != statement){
+      String message_lora="GPS:REQUEST LOC";
       last_statement = statement;
-      pCharacteristic->setValue((uint8_t*)&statement, sizeof(statement));//setValue(std::to_string(statement));
+      //pCharacteristic->setValue((uint8_t*)&statement, sizeof(statement));//setValue(std::to_string(statement));
+      //Serial.println(foo);
+      pCharacteristic->setValue(message_lora.c_str());
       pCharacteristic->notify();                 
   }
 }
@@ -167,7 +170,7 @@ void loop() {
         // publish temperature
         //temperature->setValue(std::to_string(value)+"c");
         //temperature->notify();  
-        String getdata = temperature->getValue().c_str();  
+        String getdata = temperature->getValue().c_str();
         Serial.println(getdata); 
         delay(300);     
     }

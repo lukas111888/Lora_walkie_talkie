@@ -1,5 +1,6 @@
 package com.android.example.lora_walkie_talkie
 
+
 import android.Manifest
 import android.annotation.SuppressLint
 import android.bluetooth.*
@@ -9,33 +10,27 @@ import android.bluetooth.le.ScanResult
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.location.Criteria
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
-import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.os.Handler
 import android.util.Log
 import android.widget.Button
+import android.widget.TextView
 import android.widget.Toast
-import androidx.constraintlayout.motion.widget.Debug.getLocation
+import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-
+import androidx.recyclerview.selection.SelectionTracker
+import com.android.example.lora_walkie_talkie.databinding.ActivityMapsBinding
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.MarkerOptions
-import com.android.example.lora_walkie_talkie.databinding.ActivityMapsBinding
-
-
-import android.widget.TextView
-import androidx.recyclerview.selection.SelectionPredicates
-import androidx.recyclerview.selection.SelectionTracker
-import androidx.recyclerview.selection.StorageStrategy
-import androidx.recyclerview.widget.LinearLayoutManager
 
 
 class MapsActivity : AppCompatActivity(), OnMapReadyCallback, LocationListener{
@@ -61,11 +56,17 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, LocationListener{
     // Stops scanning after 10 seconds.
     private val SCAN_PERIOD: Long = 10000
 
+
     private lateinit var myBtDeviceListAdapter: BluetoothDeviceListAdapter
     private lateinit var tracker: SelectionTracker<String>
     private var selectedDevice: BluetoothDevice? = null
 
     private lateinit var myBtGattListAdapter: GattListAdapter
+
+    var Requester: Boolean = false
+    var Receiver: Boolean = false
+
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -82,7 +83,15 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, LocationListener{
             if (!BLEconnection){
                 scanLeDevice()
             }
-            getLocation()
+            Requester=true
+            Receiver = false
+            locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
+            if ((ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED)) {
+                ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), locationPermissionCode)
+            }
+            locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 2000, 0f, this)
+            //locationManager.removeUpdates(this)
+           // getLocation()
         }
 
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
@@ -170,27 +179,48 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, LocationListener{
         var sydney = LatLng(31.0, 151.0)
         // Add a marker in Sydney and move the camera
         if (lat != null) {
-             sydney = LatLng(lat, long)
+            sydney = LatLng(lat, long)
         }
         mMap.addMarker(MarkerOptions().position(sydney).title("Marker in Sydney"))
         mMap.moveCamera(CameraUpdateFactory.newLatLng(sydney))
     }
 
     private fun getLocation() {
-        locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
+//        locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
         if ((ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED)) {
             ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), locationPermissionCode)
         }
-        locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 5000, 5f, this)
+        locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0f, this)
+//        val criteria = Criteria()
+//        criteria.accuracy = Criteria.ACCURACY_COARSE
+//        locationManager.requestSingleUpdate(LocationManager.GPS_PROVIDER, this, null);
+
     }
+
     override fun onLocationChanged(location: Location) {
+        Log.e(TAG, "LOCATION UPDATE!!!")
         lat = location.latitude
         long = location.longitude
         tvGpsLocation = findViewById(R.id.textView)
         tvGpsLocation.text = "Latitude: " + location.latitude + " , Longitude: " + location.longitude
-        update(tvGpsLocation.text.toString())
-        addLocMap(lat,long,"Here")
+        //update(tvGpsLocation.text.toString())
+        if(Requester){
+            Log.e(TAG, "Requester Triggered!!!!")
+            update("GPS:REQUEST LOC")
+        }
+        if(Receiver){
+            Log.e(TAG, "Receiver Triggered!!!!")
+            update(tvGpsLocation.text.toString())
+        }
+
+        Requester=false
+        Receiver=false
+        addLocMap(lat,long,"My Location")
+        //locationManager.removeUpdates(this)
+
+
     }
+
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == locationPermissionCode) {
@@ -275,13 +305,41 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, LocationListener{
                 Log.w(TAG, "onServicesDiscovered received: $status")
             }
         }
+        override fun onCharacteristicChanged(
+            gatt: BluetoothGatt?,
+            characteristic: BluetoothGattCharacteristic?
+        ) {
+            super.onCharacteristicChanged(gatt, characteristic)
+            // CircuitPlayground is sending 2 bytes
+            // value[0] is "Sensor Connected"
+            // value[1] is the current beats per second
+            Log.e(TAG, "CHAR READ!!!!!!")
+            //Log.e(TAG, characteristic.toString())
+            //Log.e(TAG, characteristic?.value?.get(1)?.toUByte().toString())
+            var test = characteristic?.getValue()?.toUByteArray()
+            var s1 = ""
+            if (test != null ) {
+                for (i in test) {
+                    s1 = concatenate(s1,i.toDouble().toChar().toString())
+                    //Log.e(TAG,i.toDouble().toChar().toString())
+                }
+            }
+            Log.e(TAG,s1)
+            if(s1=="GPS:REQUEST LOC"){
+                Log.e(TAG, "string match")
+                Receiver=true
+                getLocation()
+            }
+
+
+        }
     }
     @SuppressLint("MissingPermission")
     private fun checkAndConnectToHRM(services: List<BluetoothGattService>?) {
-        Log.i(TAG, "Checking for Arduino Service")
+        Log.e(TAG, "Checking for Arduino Service")
         services?.forEach { service ->
             if (service.uuid == SampleGattAttributes.MICRCOCONTROLLER_SERVICE_UUID){
-                Log.i(TAG, "Found Arduino Service")
+                Log.e(TAG, "Found Arduino Service")
                 val characteristic = service.getCharacteristic(SampleGattAttributes.SWITCH_STATE_UUID)
                 bluetoothGatt?.readCharacteristic(characteristic)
                 //Log.e("0", "characteristic?.value?.get(0)?.toUByte().toString()")
@@ -365,4 +423,12 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, LocationListener{
         //binding.buttonDisconnect.isEnabled = false
         //binding.buttonConnect.isEnabled = true
     }
+    
+
+    fun concatenate(vararg string: String?): String {
+        var result = ""
+        string.forEach { result = result.plus(it) }
+        return result
+    }
+
 }
