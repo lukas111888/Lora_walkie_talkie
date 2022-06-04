@@ -36,6 +36,7 @@ import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.LatLng
+import com.google.android.gms.maps.model.Marker
 import com.google.android.gms.maps.model.MarkerOptions
 
 
@@ -58,6 +59,8 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, LocationListener{
     var bluetoothGatt: BluetoothGatt? = null
     var number = 0
     var count = 0
+    var MyMarker: Marker?=null
+    var TheirMarker:Marker?=null
     //var sender: BluetoothGattCharacteristic
 
     // Stops scanning after 10 seconds.
@@ -83,7 +86,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, LocationListener{
 
         binding = ActivityMapsBinding.inflate(layoutInflater)
         setContentView(binding.root)
-        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
+        fusedLocationClient = getFusedLocationProviderClient(this)
 
         title = "KotlinApp"
         // BLE+GPS
@@ -178,13 +181,13 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, LocationListener{
         if (lat != null) {
             sydney = LatLng(lat, long)
         }
-        mMap.addMarker(MarkerOptions().position(sydney).title("My Location"))
+        MyMarker=mMap.addMarker(MarkerOptions().position(sydney).title("My Location"))
         mMap.moveCamera(CameraUpdateFactory.newLatLng(sydney))
     }
 
     private fun getLocation() {
         count = 0
-        locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
+        locationManager = getSystemService(LOCATION_SERVICE) as LocationManager
         if ((ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED)) {
             ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), locationPermissionCode)
         }
@@ -257,9 +260,19 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, LocationListener{
 
     private fun addLocMap(lat:Double,long:Double,pin_title:String) {
         runOnUiThread{
-            var current_location = LatLng(lat, long)
-            mMap.addMarker(MarkerOptions().position(current_location ).title(pin_title))
-            mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(current_location,10f))
+
+            if(pin_title=="My Location"){
+                MyMarker?.remove()
+                var current_location = LatLng(lat, long)
+                MyMarker=mMap.addMarker(MarkerOptions().position(current_location ).title(pin_title))
+                mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(current_location,10f))}
+            if (pin_title=="Received"){
+                TheirMarker?.remove()
+                var current_location = LatLng(lat, long)
+                TheirMarker=mMap.addMarker(MarkerOptions().position(current_location ).title(pin_title))
+                mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(current_location,10f))
+
+            }
         }
     }
 
@@ -361,29 +374,55 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, LocationListener{
             }
             */
             characteristic?.getStringValue(0)?.substring(0, 4)?.let {
+                //when(it){
+                    //"GPS:" ->{
+                        //val value = characteristic.getStringValue(0).substring(4)
+                        //val middle = value.indexOf(",")
+                        //val lat = value.substring(0,middle)
+                        //val long = value.substring(middle+1)
+                        //Log.e(TAG, lat.toDouble().toString())
+                        //Log.e(TAG, long.toDouble().toString())
+                        //addLocMap(lat.toDouble(),long.toDouble(),"Received")
+                        //}
+                    //"TXT:" ->{
+                        //val msg = "msg:"+characteristic.getStringValue(0).substring(4)
+                        //Log.e(TAG, msg)
+                        //}
+                    //"DoNe" ->{
+                        //Log.e(TAG, it)
+                        //handler.post{
+                            //binding.button.isEnabled = true
+                            //binding.button2.isEnabled = true
+                            //}
+                        //}
+                    //    else -> Log.e(TAG, "what's it?$it")
+                //}
                 when(it){
                     "GPS:" ->{
                         val value = characteristic.getStringValue(0).substring(4)
                         val middle = value.indexOf(",")
-                        val lat = value.substring(0,middle)
-                        val long = value.substring(middle+1)
-                        Log.e(TAG, lat.toDouble().toString())
-                        Log.e(TAG, long.toDouble().toString())
-                        addLocMap(lat.toDouble(),long.toDouble(),"Received")
+                        val anther_lat = value.substring(0,middle)
+                        val anther_long = value.substring(middle+1)
+                        Log.e(TAG, anther_lat.toDouble().toString())
+                        Log.e(TAG, anther_long.toDouble().toString())
+                        if (anther_lat.toDouble() != lat){
+                            update(characteristic?.getStringValue(0))
+                        }
+                        addLocMap(anther_lat.toDouble(),anther_long.toDouble(),"Received")
                     }
                     "TXT:" ->{
-                        val msg = "msg:"+characteristic.getStringValue(0).substring(4)
-                        Log.e(TAG, msg)
+                    val msg = "msg:"+characteristic.getStringValue(0).substring(4)
+                    Log.e(TAG, msg)
                     }
                     "DoNe" ->{
-                        Log.e(TAG, it)
-                        handler.post{
-                            binding.button.isEnabled = true
-                            binding.button2.isEnabled = true
-                        }
+                    Log.e(TAG, it)
+                    handler.post{
+                    binding.button.isEnabled = true
+                    binding.button2.isEnabled = true
                     }
-                    else -> Log.e(TAG, "what's it?$it")
-                }
+                    }
+                        else -> Log.e(TAG, "what's it?$it")
+                    }
             }
         }
     }
