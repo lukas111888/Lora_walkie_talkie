@@ -19,6 +19,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.util.Log
 import android.widget.Button
+import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
 import androidx.annotation.RequiresApi
@@ -119,7 +120,9 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, LocationListener{
         //TXT
         val button2: Button = findViewById(R.id.button2)
         button2.setOnClickListener {
-            val msg = "Hello"
+            val editText: EditText = findViewById(R.id.MessageText)
+            //val msg = "Hello"
+            val msg=editText.text.toString()
             number = 1+number
             update("TXT:$msg:$number")
             Toast.makeText(baseContext, "button2", Toast.LENGTH_LONG).show()
