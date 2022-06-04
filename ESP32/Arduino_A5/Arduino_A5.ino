@@ -19,13 +19,7 @@
    A connect hander associated with the server starts a background task that performs notification
    every couple of seconds.
 */
-#ifdef __cplusplus
-  extern "C" {
-#endif
-  uint8_t temprature_sens_read();
-#ifdef __cplusplus
-}
-#endif
+
 
 #include <BLEDevice.h>
 #include <BLEServer.h>
@@ -40,7 +34,6 @@
 
 
 //Declare variables
-uint8_t temprature_sens_read();
 BLEServer* pServer = NULL;
 BLECharacteristic* pCharacteristic = NULL;
 BLECharacteristic* temperature = NULL;
@@ -59,57 +52,23 @@ bool touchActive = false;
 bool lastTouchActive = false;
 bool testingLower = true;
 
-//IRS switch 1 and 2
-void gotTouch(){
-  if (lastTouchActive != testingLower) {
-    touchActive = !touchActive;
-    testingLower = !testingLower;
-    //touchInterruptSetThresholdDirection(testingLower);
-  }
-  Switch();
-}
+
 
 void gotPush(){  
  Button = !digitalRead(T1);
- Switch();
+ if (Button ==1){ 
+  String message_lora="GPS:47.98246466,-122.15719442";
+  Serial.println(message_lora);
+  pCharacteristic->setValue(message_lora.c_str());
+  pCharacteristic->notify();      
+ }else{
+  String message_lora="DoNe";
+  Serial.println(message_lora);
+  pCharacteristic->setValue(message_lora.c_str());
+  pCharacteristic->notify();   
+ }
 }
 
-// Update function for two switch statements
-void Switch(){  
-  //Update switch 1  
-  if(lastTouchActive != touchActive){
-    lastTouchActive = touchActive;
-      if (touchActive) {
-        statement |= 0b10;
-        Serial.println("  ---- Touch was Pressed");
-        hrm++;
-      } else {
-        statement &= 0b01;
-        Serial.println("  ---- Touch was Released");
-      }
-  }
-  //Update switch 2
-  if(last_Button != Button){    
-    last_Button = Button;
-      if (Button) {
-        statement |= 0b10;//0b01
-        Serial.println("  ---- Button was Pressed");
-        hrm++;
-      } else {
-        statement &= 0b01; //
-        Serial.println("  ---- Button was Released");
-      }
-  }
-  // notify changed value
-  if(last_statement != statement){
-      String message_lora="GPS:REQUEST LOC";
-      last_statement = statement;
-      //pCharacteristic->setValue((uint8_t*)&statement, sizeof(statement));//setValue(std::to_string(statement));
-      //Serial.println(foo);
-      pCharacteristic->setValue(message_lora.c_str());
-      pCharacteristic->notify();                 
-  }
-}
 
 //Server Callback
 class MyServerCallbacks: public BLEServerCallbacks {
@@ -125,7 +84,6 @@ class MyServerCallbacks: public BLEServerCallbacks {
 void setup() {
   Serial.begin(115200);
   //Initialize switch interrupts 
-  touchAttachInterrupt(T5, gotTouch, threshold);
   attachInterrupt(T1, gotPush, CHANGE);
   
   // Create the BLE Device
@@ -163,16 +121,11 @@ void setup() {
 }
 
 void loop() {
-    //Get temprature value
-    value = (temprature_sens_read() - 32) / 1.8;
     // notify changed value
-    if (deviceConnected) {        
-        // publish temperature
-        //temperature->setValue(std::to_string(value)+"c");
-        //temperature->notify();  
-        String getdata = temperature->getValue().c_str();
+    if (deviceConnected) {       
+        
+        String getdata = temperature->getValue().c_str();  
         Serial.println(getdata); 
-        delay(300);     
     }
     // disconnecting
     if (!deviceConnected && oldDeviceConnected) {
@@ -185,5 +138,6 @@ void loop() {
     if (deviceConnected && !oldDeviceConnected) {
         // do stuff here on connecting
         oldDeviceConnected = deviceConnected;
-    }    
+    } 
+    delay(1000);   
 }

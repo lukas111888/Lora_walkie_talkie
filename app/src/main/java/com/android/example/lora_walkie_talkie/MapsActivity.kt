@@ -13,17 +13,24 @@ import android.content.pm.PackageManager
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
+import android.location.LocationRequest
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.util.Log
 import android.widget.Button
 import android.widget.TextView
 import android.widget.Toast
+import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.core.location.LocationManagerCompat.getCurrentLocation
 import androidx.recyclerview.selection.SelectionTracker
 import com.android.example.lora_walkie_talkie.databinding.ActivityMapsBinding
+import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.LocationServices.getFusedLocationProviderClient
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
@@ -55,7 +62,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, LocationListener{
 
     // Stops scanning after 10 seconds.
     private val SCAN_PERIOD: Long = 10000
-
+    private val mLocationRequest: LocationRequest? = null
 
     private lateinit var myBtDeviceListAdapter: BluetoothDeviceListAdapter
     private lateinit var tracker: SelectionTracker<String>
@@ -65,24 +72,35 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, LocationListener{
 
     var Requester: Boolean = false
     var Receiver: Boolean = false
+    private lateinit var fusedLocationClient: FusedLocationProviderClient
 
 
 
+    @RequiresApi(Build.VERSION_CODES.S)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         supportActionBar?.hide()
 
         binding = ActivityMapsBinding.inflate(layoutInflater)
         setContentView(binding.root)
-
-
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
 
         title = "KotlinApp"
+        // BLE+GPS
         val button: Button = findViewById(R.id.button)
         button.setOnClickListener {
             if (!BLEconnection){
                 scanLeDevice()
+                Toast.makeText(baseContext, "Connected!", Toast.LENGTH_LONG).show()
+                getLastKnownLocation()
+            }else if (lat != null){
+                if (binding.button.isEnabled and binding.button2.isEnabled){
+                    update("GPS:$lat,$long")
+                    Toast.makeText(baseContext, "button", Toast.LENGTH_LONG).show()
+                }
+                getLocation()
             }
+
             Requester=true
             Receiver = false
 //            locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
@@ -92,7 +110,18 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, LocationListener{
 //            number = 0
 //            locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000, 0f, this)
             //locationManager.removeUpdates(this)
-           getLocation()
+
+        }
+
+        //TXT
+        val button2: Button = findViewById(R.id.button2)
+        button2.setOnClickListener {
+            val msg = "Hello"
+            number = 1+number
+            update("TXT:$msg:$number")
+            Toast.makeText(baseContext, "button2", Toast.LENGTH_LONG).show()
+
+
         }
 
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
@@ -174,7 +203,9 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, LocationListener{
         long = location.longitude
         tvGpsLocation = findViewById(R.id.textView)
         tvGpsLocation.text = "Latitude: " + location.latitude + " , Longitude: " + location.longitude
-        //update(tvGpsLocation.text.toString())
+        locationManager.removeUpdates(this)
+        addLocMap(lat,long,"My Location")
+        /*
         if(Requester){
             Log.e(TAG, "Requester Triggered!!!!")
             update("GPS:REQUEST LOC")
@@ -193,6 +224,22 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, LocationListener{
 
         addLocMap(lat,long,"My Location")
         count +=1
+
+         */
+    }
+
+    //https://developer.android.com/training/location/retrieve-current
+    @SuppressLint("MissingPermission")
+    private fun getLastKnownLocation() {
+        fusedLocationClient.lastLocation
+            .addOnSuccessListener { location : Location? ->
+                // Got last known location. In some rare situations this can be null.
+                if (location != null) {
+                    Log.e("gpsLat",location.latitude.toString())
+                    Log.e("gpsLong",location.longitude.toString())
+                    addLocMap(location.latitude,location.longitude,"My Location")
+                }
+            }
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
@@ -209,9 +256,11 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, LocationListener{
     }
 
     private fun addLocMap(lat:Double,long:Double,pin_title:String) {
-        var current_location = LatLng(lat, long)
-        mMap.addMarker(MarkerOptions().position(current_location ).title(pin_title))
-        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(current_location,12f))
+        runOnUiThread{
+            var current_location = LatLng(lat, long)
+            mMap.addMarker(MarkerOptions().position(current_location ).title(pin_title))
+            mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(current_location,10f))
+        }
     }
 
 
@@ -288,8 +337,9 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, LocationListener{
             // CircuitPlayground is sending 2 bytes
             // value[0] is "Sensor Connected"
             // value[1] is the current beats per second
-            Log.e(TAG, "CHAR READ!!!!!!")
+            //Log.e(TAG, "CHAR READ!!!!!!")
             //Log.e(TAG, characteristic.toString())
+            /*
             Log.e(TAG, characteristic?.getValue()?.toUByteArray().toString())
             var test = characteristic?.getValue()?.toUByteArray()
             var s1 = ""
@@ -309,8 +359,32 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, LocationListener{
                 Log.e(TAG, "Getting Location from Heltec")
                 addLocMap(60.56,-125.758,"Received")
             }
-
-
+            */
+            characteristic?.getStringValue(0)?.substring(0, 4)?.let {
+                when(it){
+                    "GPS:" ->{
+                        val value = characteristic.getStringValue(0).substring(4)
+                        val middle = value.indexOf(",")
+                        val lat = value.substring(0,middle)
+                        val long = value.substring(middle+1)
+                        Log.e(TAG, lat.toDouble().toString())
+                        Log.e(TAG, long.toDouble().toString())
+                        addLocMap(lat.toDouble(),long.toDouble(),"Received")
+                    }
+                    "TXT:" ->{
+                        val msg = "msg:"+characteristic.getStringValue(0).substring(4)
+                        Log.e(TAG, msg)
+                    }
+                    "DoNe" ->{
+                        Log.e(TAG, it)
+                        handler.post{
+                            binding.button.isEnabled = true
+                            binding.button2.isEnabled = true
+                        }
+                    }
+                    else -> Log.e(TAG, "what's it?$it")
+                }
+            }
         }
     }
 
@@ -396,9 +470,11 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, LocationListener{
             sender?.setValue(gps)
             val result_state=bluetoothGatt?.writeCharacteristic(sender)
             Log.e("BLE", result_state.toString())
-            number = 1+number
+
 
         }
+        binding.button.isEnabled = false
+        binding.button2.isEnabled = false
         //bluetoothGatt?.disconnect()
         //binding.buttonDisconnect.isEnabled = false
         //binding.buttonConnect.isEnabled = true
