@@ -38,7 +38,7 @@ void logo() {
   Heltec.display->drawXbm(0, 5, logo_width, logo_height, logo_bits);
   Heltec.display->display();
 }
-
+/*
 void LoRaData() {
   Heltec.display->clear();
   Heltec.display->setTextAlignment(TEXT_ALIGN_LEFT);
@@ -48,6 +48,7 @@ void LoRaData() {
   Heltec.display->drawString(0, 0, rssi);
   Heltec.display->display();
 }
+*/
 void gotPush(){  
  value ++;
 }
@@ -61,6 +62,12 @@ String readfromlora(int packetSize) {
   //LoRaData();
   return packet;
 }
+void sendtolora(String msg){
+  LoRa.beginPacket();
+  LoRa.setTxPower(14,RF_PACONFIG_PASELECT_PABOOST);
+  LoRa.print(msg);
+  LoRa.endPacket(); 
+}
 
 void setup() {
   //WIFI Kit series V1 not support Vext control
@@ -73,7 +80,6 @@ void setup() {
   attachInterrupt(T1, gotPush, FALLING);
   delay(1500);
   Heltec.display->clear();
-
   Heltec.display->drawString(0, 0, "Heltec.LoRa Initial success!");
   Heltec.display->drawString(0, 10, "Wait for incoming data...");
   Heltec.display->display();
@@ -120,70 +126,53 @@ void setup() {
   Serial.println("Waiting a client connection to notify...");
   message_phone_old = " ";
 }
-/*
-bool check(){  
-  for(int i=0; i<1;i++){
-    LoRa.beginPacket();
-    LoRa.setTxPower(14,RF_PACONFIG_PASELECT_PABOOST);
-    LoRa.print(localAddress);
-    LoRa.endPacket();
-    Serial.println("here1");
-    //delay(2000);  
-    int packetSize = LoRa.parsePacket();
-    if (packetSize) {
-       String Add= readfromlora(packetSize);
-       Serial.println("here2");
-       if (Add == localAddress){
-        return true;
-       }
-       else{
-        return false;
-       }
-    } 
-  }
-  Serial.println("here3");
-  return false; 
-}*/
-
 
 void loop() {
   deviceConnected = true;
-  Serial.println(value);
   if (deviceConnected) {      
     //Get message from lora
     int packetSize = LoRa.parsePacket();
     if (packetSize) {
       message_lora = readfromlora(packetSize);
-      Serial.println("message_lora:"+message_lora);
-      if (message_lora.substring(0,3) == "GPS" or message_lora.substring(0,3) =="TXT"){
+      //Check message get back successful 
+      if(message_lora==message_phone){        
+          message_phone_old = message_phone;
+          // uncommend for BLE
+          //pCharacteristic->setValue("finished");
+          //pCharacteristic->notify();
+           
+      }else if (message_lora.substring(0,4) == "GPS:" or message_lora.substring(0,4) =="TXT:"){
         // Send message to phone
         // uncommend for BLE
         //pCharacteristic->setValue(message_lora.c_str());
         //pCharacteristic->notify();
-        Serial.println(message_lora);
+        //Serial.println(message_lora);
         message_lora_old = message_lora;
+        //Call back to check message received successful
+        sendtolora(message_lora); 
+        //Check message updata successful        
       }else if(message_lora_old != message_lora){
-        LoRa.beginPacket();
-        LoRa.setTxPower(14,RF_PACONFIG_PASELECT_PABOOST);
-        LoRa.print(message_lora);
-        LoRa.endPacket();     
+        sendtolora(message_lora); 
       }
+      Serial.println("get");
+      Serial.print("own value"+message_phone+"  ");
+      Serial.println("anther"+message_lora);  
     }else{
       // Get message from phone 
       // commend for BLE
-      message_phone = "TXT"+localAddress+":"+String(value);
+      message_phone = "TXT:"+localAddress+":"+String(value);
       // uncommend for BLE      
       //message_phone = temperature->getValue().c_str(); 
       if (message_phone !=message_phone_old){
-      // Send message to lora
-        bool checking = true;//check();
-        if (checking){
-          LoRa.beginPacket();
-          LoRa.setTxPower(14,RF_PACONFIG_PASELECT_PABOOST);
-          LoRa.print(message_phone);
-          LoRa.endPacket();
-          Serial.println(message_phone);
-          message_phone_old = message_phone;          
+        // Send message to lora
+        // random send rate prevent conflict       
+        int randNumber = random(100);
+        if (randNumber%5==0){
+          sendtolora(message_phone);
+          Serial.println(message_phone);  
+          Serial.println("send");
+          Serial.print("own value"+message_phone+"  ");
+          Serial.println("anther"+message_lora);       
         }
       }    
     }
@@ -204,8 +193,9 @@ void loop() {
   Heltec.display->clear();
   Heltec.display->setTextAlignment(TEXT_ALIGN_LEFT);
   Heltec.display->setFont(ArialMT_Plain_10);
-  Heltec.display->drawString(0, 0, "Own: "+message_phone_old);
-  Heltec.display->drawString(0, 10, "Other: "+message_lora_old);
+  Heltec.display->drawString(0, 0, " Own: "+message_phone_old);
+  Heltec.display->drawString(0, 10, " Other: "+message_lora_old);
+  Heltec.display->drawString(0, 20, " Value: "+String(value));
   Heltec.display->display();
-  delay(300);
+  delay(100);
 }
