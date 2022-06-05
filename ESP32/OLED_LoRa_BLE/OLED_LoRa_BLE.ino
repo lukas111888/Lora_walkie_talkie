@@ -8,19 +8,17 @@
 #define SERVICE_UUID        "180A"
 #define UUID16_CHR_SERVICE_CHANGED "2A05"
 #define UUID16_CHR_TEMPERATURE_MEASUREMENT  "2A1C"
-
 BLEServer* pServer = NULL;
 BLECharacteristic* pCharacteristic = NULL;
 BLECharacteristic* temperature = NULL;
-String localAddress = "AA";
+String localAddress ;
 bool deviceConnected = false;
 bool oldDeviceConnected = false;
 uint32_t value = 0;
-String message_phone;
-String message_lora;
+String message_phone="";
+String message_lora="";
 String message_phone_old="";
 String message_lora_old="";
-
 String rssi = "RSSI --";
 String packSize = "--";
 String packet ;
@@ -69,6 +67,18 @@ void sendtolora(String msg){
   LoRa.endPacket(); 
 }
 
+void GenTxt(){
+  Serial.println("?");
+  int generated=0;
+  while (generated<6){
+     int randomValue = random(0, 26);
+     char letter = randomValue + 'a';
+     localAddress += letter;
+     generated ++;
+     Serial.println(localAddress);
+  }
+}
+
 void setup() {
   //WIFI Kit series V1 not support Vext control
   Heltec.begin(true /*DisplayEnable Enable*/, true /*Heltec.Heltec.Heltec.LoRa Disable*/, true /*Serial Enable*/, true /*PABOOST Enable*/, BAND /*long BAND*/);
@@ -83,11 +93,12 @@ void setup() {
   Heltec.display->drawString(0, 0, "Heltec.LoRa Initial success!");
   Heltec.display->drawString(0, 10, "Wait for incoming data...");
   Heltec.display->display();
+  
   delay(1000);
   //LoRa.onReceive(cbk);
   LoRa.receive();
   // Create the BLE Device
-  BLEDevice::init("ESP32");
+  BLEDevice::init("UW LoRa B");
 
   // Create the BLE Server
   pServer = BLEDevice::createServer();
@@ -122,14 +133,16 @@ void setup() {
   pAdvertising->setScanResponse(false);
   pAdvertising->setMinPreferred(0x0);  // set value to 0x00 to not advertise this parameter
   // uncommend for BLE  
-  //BLEDevice::startAdvertising();
+  BLEDevice::startAdvertising();
   Serial.println("Waiting a client connection to notify...");
-  message_phone_old = " ";
+  //message_phone_old = "";
+  GenTxt();
 }
 
-void loop() {
-  deviceConnected = true;
-  if (deviceConnected) {      
+void loop() {  
+  // commend for BLE
+  //deviceConnected = true;
+  if (deviceConnected) {     
     //Get message from lora
     int packetSize = LoRa.parsePacket();
     if (packetSize) {
@@ -138,14 +151,14 @@ void loop() {
       if(message_lora==message_phone){        
           message_phone_old = message_phone;
           // uncommend for BLE
-          //pCharacteristic->setValue("finished");
-          //pCharacteristic->notify();
-           
-      }else if (message_lora.substring(0,4) == "GPS:" or message_lora.substring(0,4) =="TXT:"){
+          pCharacteristic->setValue("DoNe");
+          pCharacteristic->notify();          
+      }else if (message_lora.substring(6,7) == "G" or message_lora.substring(6,7) =="T"){
         // Send message to phone
         // uncommend for BLE
-        //pCharacteristic->setValue(message_lora.c_str());
-        //pCharacteristic->notify();
+        String temp = message_lora.substring(6);
+        pCharacteristic->setValue(temp.c_str());
+        pCharacteristic->notify();
         //Serial.println(message_lora);
         message_lora_old = message_lora;
         //Call back to check message received successful
@@ -160,21 +173,28 @@ void loop() {
     }else{
       // Get message from phone 
       // commend for BLE
-      message_phone = "TXT:"+localAddress+":"+String(value);
-      // uncommend for BLE      
-      //message_phone = temperature->getValue().c_str(); 
-      if (message_phone !=message_phone_old){
+      //message_phone = "TXT:"+localAddress+":"+String(value);
+      // uncommend for BLE   
+      //Prevent both parties send the same content   
+      message_phone = localAddress+temperature->getValue().c_str(); 
+      if (message_phone !=message_phone_old and message_phone!=""){
         // Send message to lora
         // random send rate prevent conflict       
         int randNumber = random(100);
         if (randNumber%5==0){
-          sendtolora(message_phone);
-          Serial.println(message_phone);  
+          sendtolora(message_phone);                 
           Serial.println("send");
           Serial.print("own value"+message_phone+"  ");
-          Serial.println("anther"+message_lora);       
+          Serial.println("anther"+message_lora);                       
         }
-      }    
+      }/*else if(message_phone==message_phone_old and message_phone!=""){
+        if(pCharacteristic->getValue().c_str() != "DoNe"){
+          pCharacteristic->setValue("DoNe");
+           Serial.println(pCharacteristic->getValue()
+          pCharacteristic->notify(); 
+        }                   
+      }
+      */ 
     }
   }
   
@@ -189,13 +209,15 @@ void loop() {
   if (deviceConnected && !oldDeviceConnected) {
     // do stuff here on connecting
     oldDeviceConnected = deviceConnected;
+    Serial.println("DeviceConnected");
   }
   Heltec.display->clear();
   Heltec.display->setTextAlignment(TEXT_ALIGN_LEFT);
-  Heltec.display->setFont(ArialMT_Plain_10);
+  Heltec.display->setFont(ArialMT_Plain_16);
   Heltec.display->drawString(0, 0, " Own: "+message_phone_old);
-  Heltec.display->drawString(0, 10, " Other: "+message_lora_old);
-  Heltec.display->drawString(0, 20, " Value: "+String(value));
+  Heltec.display->drawString(0, 16, " Other: "+message_lora_old);  
+  Heltec.display->drawString(0, 32, localAddress );
+  Heltec.display->drawString(0, 48, String(deviceConnected));
   Heltec.display->display();
   delay(100);
 }
