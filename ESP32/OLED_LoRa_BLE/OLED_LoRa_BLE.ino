@@ -214,8 +214,8 @@ void loop() {
   Heltec.display->clear();
   Heltec.display->setTextAlignment(TEXT_ALIGN_LEFT);
   Heltec.display->setFont(ArialMT_Plain_16);
-  Heltec.display->drawString(0, 0, " Own: "+message_phone_old);
-  Heltec.display->drawString(0, 16, " Other: "+message_lora_old);  
+  Heltec.display->drawString(0, 0, " Own: "+message_phone_old.substring(6));
+  Heltec.display->drawString(0, 16, " Other: "+message_lora_old.substring(6));  
   Heltec.display->drawString(0, 32, localAddress );
   Heltec.display->drawString(0, 48, String(deviceConnected));
   Heltec.display->display();

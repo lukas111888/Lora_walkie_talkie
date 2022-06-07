@@ -75,7 +75,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, LocationListener{
 
     private lateinit var myBtGattListAdapter: GattListAdapter
     private lateinit var fusedLocationClient: FusedLocationProviderClient
-    var loop_killer = 0
+    private var loop_killer = false
 
 
 
@@ -103,6 +103,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, LocationListener{
                 }
                 getLocation()
             }
+            loop_killer = false
         }
 
         //TXT
@@ -317,8 +318,11 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, LocationListener{
                         Log.e("Get GPS: ","G"+value)
 
                         (anther_lat.toDouble() != lat).let{
-                            update("G" + lat.toString() + "," + long.toString())
-                            addLocMap(anther_lat.toDouble(),anther_long.toDouble(),"Received")
+                            if (!loop_killer) {
+                                update("G" + lat.toString() + "," + long.toString())
+                                addLocMap(anther_lat.toDouble(), anther_long.toDouble(), "Received")
+                                loop_killer = true
+                            }
                         }
                         (anther_lat.toDouble() == lat).let{
                             handler.post {
